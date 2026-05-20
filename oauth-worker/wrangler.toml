@@ -1,0 +1,7 @@
+name = "github-oauth-proxy"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+# Secrets are set via CLI — never stored here:
+#   wrangler secret put GITHUB_CLIENT_ID
+#   wrangler secret put GITHUB_CLIENT_SECRET
