@@ -3,7 +3,7 @@
 # Requires the GitHub CLI: https://cli.github.com
 # Usage: bash create-labels.sh
 
-REPO="chaitanyasaragadam/customerhealth"
+REPO="chaitanyasaragadam/orwell"
 
 gh label create "approval: pending"  --color "FBD25E" --description "Waiting for admin review"   --repo "$REPO" 2>/dev/null || \
   gh label edit  "approval: pending"  --color "FBD25E" --description "Waiting for admin review"   --repo "$REPO"
