@@ -1,16 +1,16 @@
 /**
- * Cloudflare Worker — OAuth proxy + GitHub-backed user store
+ * Cloudflare Worker — OAuth proxy + split-file GitHub user store
  *
- * User records live in data/users.json in the orwell repo.
- * The Worker reads/writes that file using GITHUB_ADMIN_TOKEN (admin PAT).
- * User identity is verified by checking their GitHub OAuth token.
+ * Data layout in repo:
+ *   data/users/_index.json          { login: status }  — fast status lookups
+ *   data/users/<login>.json         full user record   — one file per user
  *
  * Endpoints:
  *   POST /exchange          — trade OAuth code for GitHub access token
- *   GET  /users/:username   — fetch user record (caller must own the token)
+ *   GET  /users/:login      — fetch full user record (caller must own the token)
  *   POST /users             — create user record on first login
  *
- * Secrets (wrangler secret put):
+ * Worker secrets (wrangler secret put):
  *   GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, GITHUB_ADMIN_TOKEN
  */
 
@@ -19,16 +19,15 @@ const ALLOWED_ORIGINS = [
   "http://localhost:3000",
 ];
 
-const DB_OWNER  = "chaitanyasaragadam";
-const DB_REPO   = "orwell";
-const DB_PATH   = "data/users.json";
-const GH_API    = "https://api.github.com";
+const DB_OWNER = "chaitanyasaragadam";
+const DB_REPO  = "orwell";
+const DB_BASE  = "data/users";
+const GH_API   = "https://api.github.com";
 
 export default {
   async fetch(request, env) {
     const origin    = request.headers.get("Origin") || "";
     const isAllowed = ALLOWED_ORIGINS.some(o => origin.startsWith(o));
-
     const cors = {
       "Access-Control-Allow-Origin":  isAllowed ? origin : ALLOWED_ORIGINS[0],
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
@@ -45,7 +44,7 @@ export default {
       if (!code) return json({ error: "missing_code" }, 400, cors);
 
       const ghRes = await fetch("https://github.com/login/oauth/access_token", {
-        method: "POST",
+        method:  "POST",
         headers: { "Content-Type": "application/json", "Accept": "application/json" },
         body: JSON.stringify({
           client_id:     env.GITHUB_CLIENT_ID,
@@ -54,43 +53,49 @@ export default {
         }),
       });
       const ghData = await ghRes.json();
-      if (ghData.error) return json({ error: ghData.error, description: ghData.error_description }, 400, cors);
+      if (ghData.error) {
+        return json({ error: ghData.error, description: ghData.error_description }, 400, cors);
+      }
       return json({ access_token: ghData.access_token }, 200, cors);
     }
 
-    // ── GET /users/:username ──────────────────────────────────────────────────
+    // ── GET /users/:login ─────────────────────────────────────────────────────
     if (url.pathname.startsWith("/users/") && request.method === "GET") {
-      const username = url.pathname.split("/users/")[1];
-      if (!username) return json({ error: "missing_username" }, 400, cors);
+      const login = url.pathname.slice("/users/".length);
+      if (!login) return json({ error: "missing_login" }, 400, cors);
 
-      const caller = await verifyToken(request);
-      if (!caller)            return json({ error: "unauthorized" }, 401, cors);
-      if (caller !== username) return json({ error: "forbidden" }, 403, cors);
+      const caller = await verifyToken(request, env);
+      if (!caller)         return json({ error: "unauthorized" }, 401, cors);
+      if (caller !== login) return json({ error: "forbidden" }, 403, cors);
 
-      const { users } = await readDB(env);
-      const record = users[username];
+      const record = await readUserFile(env, login);
       if (!record) return json({ error: "not_found" }, 404, cors);
       return json(record, 200, cors);
     }
 
     // ── POST /users ───────────────────────────────────────────────────────────
     if (url.pathname === "/users" && request.method === "POST") {
-      const caller = await verifyToken(request);
+      const caller = await verifyToken(request, env);
       if (!caller) return json({ error: "unauthorized" }, 401, cors);
 
-      const { users, sha } = await readDB(env);
-
       // Return existing record without overwriting
-      if (users[caller]) return json(users[caller], 200, cors);
+      const existing = await readUserFile(env, caller);
+      if (existing) return json(existing, 200, cors);
 
+      // Create new record
       const record = {
         login:     caller,
         status:    "pending",
         roles:     [],
         createdAt: new Date().toISOString(),
       };
-      users[caller] = record;
-      await writeDB(env, users, sha);
+
+      // Write individual file and update index in parallel
+      await Promise.all([
+        writeUserFile(env, caller, record),
+        updateIndex(env, caller, "pending"),
+      ]);
+
       return json(record, 201, cors);
     }
 
@@ -98,43 +103,61 @@ export default {
   },
 };
 
-// ── GitHub repo DB helpers ────────────────────────────────────────────────────
+// ── Split-file DB helpers ─────────────────────────────────────────────────────
 
-async function readDB(env) {
-  const res = await ghAdmin(env, `GET /repos/${DB_OWNER}/${DB_REPO}/contents/${DB_PATH}`);
-  if (res.status === 404) return { users: {}, sha: null };
-
+async function readUserFile(env, login) {
+  const path = `${DB_BASE}/${login}.json`;
+  const res  = await ghAdmin(env, "GET", `/repos/${DB_OWNER}/${DB_REPO}/contents/${path}`);
+  if (res.status === 404) return null;
   const data = await res.json();
-  const content = JSON.parse(atob(data.content.replace(/\n/g, "")));
-  return { users: content, sha: data.sha };
+  return JSON.parse(atob(data.content.replaceAll("\n", "")));
 }
 
-async function writeDB(env, users, sha) {
+async function writeUserFile(env, login, record) {
+  const path    = `${DB_BASE}/${login}.json`;
+  const content = btoa(JSON.stringify(record, null, 2));
+
+  // Fetch existing SHA if the file already exists (needed for updates)
+  const existing = await ghAdmin(env, "GET", `/repos/${DB_OWNER}/${DB_REPO}/contents/${path}`);
+  const sha = existing.ok ? (await existing.json()).sha : undefined;
+
   const body = {
-    message: `chore: update user records [skip ci]`,
-    content: btoa(JSON.stringify(users, null, 2)),
+    message: `chore: upsert user ${login} [skip ci]`,
+    content,
+    ...(sha ? { sha } : {}),
   };
-  if (sha) body.sha = sha;
-
-  await ghAdmin(env, `PUT /repos/${DB_OWNER}/${DB_REPO}/contents/${DB_PATH}`, body);
+  await ghAdmin(env, "PUT", `/repos/${DB_OWNER}/${DB_REPO}/contents/${path}`, body);
 }
 
-function ghAdmin(env, endpoint, body) {
-  const [method, path] = endpoint.split(" ");
+async function updateIndex(env, login, status) {
+  const path      = `${DB_BASE}/_index.json`;
+  const res       = await ghAdmin(env, "GET", `/repos/${DB_OWNER}/${DB_REPO}/contents/${path}`);
+  const existing  = res.ok ? await res.json() : null;
+  const index     = existing ? JSON.parse(atob(existing.content.replaceAll("\n", ""))) : {};
+
+  index[login] = status;
+
+  await ghAdmin(env, "PUT", `/repos/${DB_OWNER}/${DB_REPO}/contents/${path}`, {
+    message: `chore: update index for ${login} [skip ci]`,
+    content: btoa(JSON.stringify(index, null, 2)),
+    ...(existing ? { sha: existing.sha } : {}),
+  });
+}
+
+function ghAdmin(env, method, path, body) {
   return fetch(`${GH_API}${path}`, {
     method,
     headers: {
       "Authorization": `Bearer ${env.GITHUB_ADMIN_TOKEN}`,
-      "Accept": "application/vnd.github+json",
-      "Content-Type": "application/json",
-      "User-Agent": "orwell-portal",
+      "Accept":        "application/vnd.github+json",
+      "Content-Type":  "application/json",
+      "User-Agent":    "orwell-portal",
     },
     body: body ? JSON.stringify(body) : undefined,
   });
 }
 
-// Verify caller's GitHub token and return their login, or null
-async function verifyToken(request) {
+async function verifyToken(request, _env) {
   const auth  = request.headers.get("Authorization") || "";
   const token = auth.replace(/^Bearer\s+/i, "");
   if (!token) return null;
@@ -142,8 +165,8 @@ async function verifyToken(request) {
   const res = await fetch(`${GH_API}/user`, {
     headers: {
       "Authorization": `Bearer ${token}`,
-      "Accept": "application/vnd.github+json",
-      "User-Agent": "orwell-portal",
+      "Accept":        "application/vnd.github+json",
+      "User-Agent":    "orwell-portal",
     },
   });
   if (!res.ok) return null;
