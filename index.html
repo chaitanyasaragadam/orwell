@@ -306,6 +306,7 @@
     <div class="tabs">
       <button class="tab active" onclick="switchTab('submit')">Submit a request</button>
       <button class="tab" onclick="switchTab('status')">My requests</button>
+      <button class="tab" onclick="switchTab('actions')">Actions</button>
     </div>
 
     <!-- Submit tab -->
@@ -334,6 +335,34 @@
             <button class="btn btn-secondary" onclick="clearForm()">Clear</button>
             <button class="btn btn-primary" id="submit-btn" onclick="submitRequest()">
               Submit for approval
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Actions tab -->
+    <div id="tab-actions" class="tab-panel">
+      <div class="card">
+        <div class="card-header">Trigger a GitHub Action</div>
+        <div class="card-body">
+          <div class="form-group">
+            <label for="action-type">Action type</label>
+            <select id="action-type">
+              <option value="default">Default</option>
+              <option value="sync">Sync data</option>
+              <option value="report">Generate report</option>
+              <option value="custom">Custom</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="action-payload">Payload (JSON, optional)</label>
+            <textarea id="action-payload" placeholder='{"key": "value"}'></textarea>
+          </div>
+          <div id="dispatch-result"></div>
+          <div style="display:flex;justify-content:flex-end">
+            <button type="button" class="btn btn-primary" id="dispatch-btn" onclick="dispatchAction()">
+              Trigger action
             </button>
           </div>
         </div>
@@ -492,7 +521,7 @@ function showPendingScreen(record) {
   `;
 }
 
-async function workerFetch(path, method) {
+async function workerFetch(path, method, body) {
   try {
     const res = await fetch(`${CONFIG.workerUrl}${path}`, {
       method,
@@ -500,6 +529,7 @@ async function workerFetch(path, method) {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${token}`,
       },
+      body: body ? JSON.stringify(body) : undefined,
     });
     if (res.status === 404) return null;
     return await res.json();
@@ -654,9 +684,51 @@ function switchTab(name) {
   document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
   document.getElementById("tab-" + name)?.classList.add("active");
   const tabs = [...document.querySelectorAll(".tab")];
-  const idx  = ["submit", "status"].indexOf(name);
+  const idx  = ["submit", "status", "actions"].indexOf(name);
   if (tabs[idx]) tabs[idx].classList.add("active");
   if (name === "status") loadMyRequests();
+}
+
+/* ── Dispatch GitHub Action ─────────────────────────────────────────────── */
+async function dispatchAction() {
+  const action_type = document.getElementById("action-type").value;
+  const rawPayload  = document.getElementById("action-payload").value.trim();
+  const resultEl    = document.getElementById("dispatch-result");
+
+  let payload = {};
+  if (rawPayload) {
+    try { payload = JSON.parse(rawPayload); }
+    catch { showDispatchResult("Payload must be valid JSON.", "error"); return; }
+  }
+
+  const btn = document.getElementById("dispatch-btn");
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spinner"></span> Triggering…`;
+  resultEl.innerHTML = "";
+
+  try {
+    const res  = await workerFetch("/dispatch", "POST", { workflow: "on-demand.yml", action_type, payload });
+    if (res?.ok) {
+      showDispatchResult(
+        `Action <strong>${escHtml(action_type)}</strong> triggered. ` +
+        `<a href="https://github.com/${CONFIG.repoOwner}/${CONFIG.repoName}/actions" target="_blank">View run →</a>`,
+        "success"
+      );
+      document.getElementById("action-payload").value = "";
+    } else {
+      showDispatchResult("Dispatch failed: " + escHtml(res?.error || res?.detail || "unknown error"), "error");
+    }
+  } catch (err) {
+    showDispatchResult("Dispatch failed: " + escHtml(err.message), "error");
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = "Trigger action";
+  }
+}
+
+function showDispatchResult(msg, type) {
+  document.getElementById("dispatch-result").innerHTML =
+    `<div class="alert alert-${type}" style="margin-bottom:12px">${msg}</div>`;
 }
 
 function showAppAlert(msg, type = "info") {

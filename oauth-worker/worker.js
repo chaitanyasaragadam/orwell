@@ -99,6 +99,42 @@ export default {
       return json(record, 201, cors);
     }
 
+    // ── POST /dispatch ────────────────────────────────────────────────────────
+    // Lets an approved user trigger a workflow_dispatch event.
+    // Body: { workflow: "on-demand.yml", action_type: "...", payload: {} }
+    if (url.pathname === "/dispatch" && request.method === "POST") {
+      const caller = await verifyToken(request, env);
+      if (!caller) return json({ error: "unauthorized" }, 401, cors);
+
+      // Only approved users may dispatch
+      const record = await readUserFile(env, caller);
+      if (!record)                      return json({ error: "user_not_found" }, 404, cors);
+      if (record.status !== "approved") return json({ error: "not_approved" }, 403, cors);
+
+      const body = await request.json().catch(() => ({}));
+      const workflow    = body.workflow    || "on-demand.yml";
+      const action_type = body.action_type || "default";
+      const payload     = body.payload     || {};
+
+      const res = await ghAdmin(env, "POST",
+        `/repos/${DB_OWNER}/${DB_REPO}/actions/workflows/${encodeURIComponent(workflow)}/dispatches`,
+        {
+          ref: "main",
+          inputs: {
+            triggered_by: caller,
+            action_type,
+            payload: JSON.stringify(payload),
+          },
+        }
+      );
+
+      // 204 = accepted by GitHub
+      if (res.status === 204) return json({ ok: true, triggered_by: caller, workflow, action_type }, 200, cors);
+
+      const err = await res.text();
+      return json({ error: "dispatch_failed", detail: err }, res.status, cors);
+    }
+
     return json({ error: "not_found" }, 404, cors);
   },
 };
