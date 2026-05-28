@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Upgrade Impact Analyzer</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#EEF2F7;--surface:#fff;--surface2:#F7F9FC;--border:#DDE3EE;
+  --text:#1A202C;--muted:#64748B;--primary:#4361EE;--pri-dk:#3451D1;--pri-lt:#EEF2FF;
+  --ok:#059669;--ok-bg:#ECFDF5;--ok-bd:#A7F3D0;
+  --warn:#D97706;--warn-bg:#FFFBEB;--warn-bd:#FDE68A;
+  --err:#DC2626;--err-bg:#FEF2F2;--err-bd:#FECACA;
+  --info:#2563EB;--info-bg:#EFF6FF;--info-bd:#BFDBFE;
+  --r:10px;
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:14px}
+.app-header{background:linear-gradient(135deg,#3451D1,#4361EE);color:#fff;padding:0 28px;height:56px;display:flex;align-items:center;justify-content:space-between}
+.hd-left{display:flex;align-items:center;gap:12px}
+.hd-icon{width:36px;height:36px;background:rgba(255,255,255,.18);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:17px}
+.hd-title h1{font-size:16px;font-weight:700}
+.hd-title p{font-size:11px;opacity:.75;margin-top:1px}
+.hd-badge{background:rgba(255,255,255,.18);padding:4px 12px;border-radius:20px;font-size:11px}
+.wizard{background:var(--surface);border-bottom:1px solid var(--border);padding:0 28px}
+.wz-inner{max-width:580px;margin:0 auto;display:flex;align-items:center;height:60px}
+.wz-item{display:flex;align-items:center;gap:9px}
+.wz-circle{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;border:2px solid var(--border);color:var(--muted);background:var(--surface);transition:all .3s;flex-shrink:0}
+.wz-circle.active{background:var(--primary);border-color:var(--primary);color:#fff}
+.wz-circle.done{background:var(--ok);border-color:var(--ok);color:#fff}
+.wz-text strong{font-size:12px;color:var(--muted);display:block;transition:color .3s}
+.wz-text span{font-size:10px;color:var(--muted)}
+.wz-item.active .wz-text strong{color:var(--primary)}
+.wz-item.done .wz-text strong{color:var(--ok)}
+.wz-line{flex:1;height:2px;background:var(--border);margin:0 10px;transition:background .4s}
+.wz-line.done{background:var(--ok)}
+.main{max-width:1060px;margin:28px auto;padding:0 20px}
+.card{background:var(--surface);border-radius:var(--r);border:1px solid var(--border);padding:22px}
+.card+.card,.card~.card{margin-top:18px}
+.card-title{font-size:15px;font-weight:700;margin-bottom:3px}
+.card-sub{font-size:12px;color:var(--muted);margin-bottom:18px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+label.lbl{display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:5px}
+select{width:100%;padding:8px 30px 8px 11px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;color:var(--text);background:var(--surface);outline:none;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2364748B' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 9px center;cursor:pointer;transition:border-color .2s}
+select:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(67,97,238,.12)}
+select:disabled{opacity:.45;cursor:not-allowed}
+.field{margin-bottom:14px}
+.field:last-child{margin-bottom:0}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:all .18s;white-space:nowrap}
+.btn:disabled{opacity:.42;cursor:not-allowed;transform:none!important}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-primary:hover:not(:disabled){background:var(--pri-dk);transform:translateY(-1px);box-shadow:0 4px 14px rgba(67,97,238,.28)}
+.btn-ok{background:var(--ok);color:#fff}
+.btn-ok:hover:not(:disabled){background:#047857;transform:translateY(-1px)}
+.btn-sec{background:var(--surface2);color:var(--text);border:1.5px solid var(--border)}
+.btn-sec:hover:not(:disabled){background:var(--border)}
+.btn-sm{padding:5px 11px;font-size:11px}
+.tabs-nav{display:flex;border-bottom:2px solid var(--border);margin-bottom:18px}
+.tab{padding:8px 16px;font-size:13px;font-weight:500;cursor:pointer;border:none;background:none;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .18s}
+.tab:hover:not(.active){color:var(--text)}
+.tab.active{color:var(--primary);border-bottom-color:var(--primary);font-weight:700}
+.tbl-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:8px}
+table{width:100%;border-collapse:collapse;font-size:12px}
+thead th{background:var(--surface2);padding:9px 13px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);border-bottom:1px solid var(--border);white-space:nowrap}
+tbody td{padding:9px 13px;border-bottom:1px solid var(--border);vertical-align:middle}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover td{background:var(--surface2)}
+.badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;white-space:nowrap}
+.bd-ok{background:var(--ok-bg);color:var(--ok);border:1px solid var(--ok-bd)}
+.bd-warn{background:var(--warn-bg);color:var(--warn);border:1px solid var(--warn-bd)}
+.bd-err{background:var(--err-bg);color:var(--err);border:1px solid var(--err-bd)}
+.bd-info{background:var(--info-bg);color:var(--info);border:1px solid var(--info-bd)}
+.bd-gray{background:var(--surface2);color:var(--muted);border:1px solid var(--border)}
+.code-wrap{position:relative;margin:10px 0}
+pre.code{background:#0F172A;color:#CBD5E1;border-radius:8px;padding:16px 18px;font-family:'Courier New',monospace;font-size:11.5px;line-height:1.65;overflow-x:auto;max-height:260px;overflow-y:auto;white-space:pre}
+.copy-btn{position:absolute;top:8px;right:8px;background:rgba(255,255,255,.1);color:#CBD5E1;border:none;padding:3px 9px;border-radius:4px;font-size:10px;cursor:pointer}
+.copy-btn:hover{background:rgba(255,255,255,.2)}
+.upz{border:2px dashed var(--border);border-radius:9px;padding:26px 18px;text-align:center;cursor:pointer;transition:all .2s;position:relative}
+.upz:hover,.upz.drag{border-color:var(--primary);background:var(--pri-lt)}
+.upz.done{border-color:var(--ok);background:var(--ok-bg);border-style:solid}
+.upz .uicon{font-size:26px;margin-bottom:6px}
+.upz .utxt{font-size:12px;color:var(--muted)}
+.upz .utxt strong{color:var(--primary)}
+.upz.done .utxt{color:var(--ok)}
+.upz input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.alert{display:flex;gap:9px;padding:11px 13px;border-radius:7px;font-size:12px;line-height:1.55;margin-bottom:14px}
+.alert-i{font-size:14px;flex-shrink:0;margin-top:1px}
+.alert-info{background:var(--info-bg);color:#1D4ED8;border:1px solid var(--info-bd)}
+.alert-warn{background:var(--warn-bg);color:#92400E;border:1px solid var(--warn-bd)}
+.alert-ok{background:var(--ok-bg);color:#065F46;border:1px solid var(--ok-bd)}
+.spin-row{display:flex;align-items:center;gap:10px;padding:14px 0;color:var(--muted);font-size:12px}
+.spin{width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:sp .7s linear infinite;flex-shrink:0}
+@keyframes sp{to{transform:rotate(360deg)}}
+.risk-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px}
+.rc{border-radius:9px;padding:16px;text-align:center;border:1px solid}
+.rc.hi{background:var(--err-bg);border-color:var(--err-bd)}
+.rc.md{background:var(--warn-bg);border-color:var(--warn-bd)}
+.rc.lo{background:var(--ok-bg);border-color:var(--ok-bd)}
+.rc-n{font-size:34px;font-weight:800;line-height:1}
+.hi .rc-n{color:var(--err)} .md .rc-n{color:var(--warn)} .lo .rc-n{color:var(--ok)}
+.rc-l{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-top:5px}
+.hi .rc-l{color:var(--err)} .md .rc-l{color:var(--warn)} .lo .rc-l{color:var(--ok)}
+.rc-d{font-size:10px;color:var(--muted);margin-top:3px}
+.rec-wrap{display:flex;flex-direction:column;gap:7px}
+.rec-item{border:1px solid var(--border);border-radius:7px;overflow:hidden}
+.rec-hd{display:flex;align-items:center;gap:9px;padding:11px 14px;cursor:pointer;background:var(--surface);transition:background .15s;user-select:none}
+.rec-hd:hover{background:var(--surface2)}
+.rec-tog{color:var(--muted);font-size:11px;margin-left:auto;transition:transform .2s}
+.rec-hd.open .rec-tog{transform:rotate(180deg)}
+.rec-bd{display:none;padding:11px 14px;font-size:12px;line-height:1.6;color:var(--muted);background:var(--surface2);border-top:1px solid var(--border)}
+.rec-bd.open{display:block}
+.chat-wrap{border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
+.chat-hdr{padding:10px 14px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:12px;font-weight:700;display:flex;align-items:center;gap:8px}
+.chat-msgs{height:320px;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;background:var(--surface2)}
+.chat-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:8px;color:var(--muted);font-size:12px;text-align:center}
+.chat-empty-icon{font-size:28px}
+.cmsg{display:flex;flex-direction:column;gap:3px;max-width:82%}
+.cmsg.user{align-self:flex-end;align-items:flex-end}
+.cmsg.bot{align-self:flex-start}
+.cbbl{padding:9px 13px;border-radius:11px;font-size:12px;line-height:1.55}
+.user .cbbl{background:var(--primary);color:#fff;border-bottom-right-radius:3px}
+.bot .cbbl{background:var(--surface);border:1px solid var(--border);color:var(--text);border-bottom-left-radius:3px}
+.typing{align-self:flex-start;display:flex;align-items:center;gap:4px;padding:10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:11px;border-bottom-left-radius:3px}
+.td{width:5px;height:5px;background:var(--muted);border-radius:50%;animation:tdb 1.2s infinite}
+.td:nth-child(2){animation-delay:.15s} .td:nth-child(3){animation-delay:.3s}
+@keyframes tdb{0%,80%,100%{transform:translateY(0);opacity:.5}40%{transform:translateY(-4px);opacity:1}}
+.chat-inp{display:flex;border-top:1px solid var(--border)}
+.chat-inp input{flex:1;padding:11px 14px;border:none;outline:none;font-size:12px;background:var(--surface);color:var(--text)}
+.chat-inp button{padding:10px 18px;background:var(--primary);color:#fff;border:none;cursor:pointer;font-size:12px;font-weight:700;transition:background .18s}
+.chat-inp button:hover{background:var(--pri-dk)}
+.chat-inp button:disabled{opacity:.5;cursor:not-allowed}
+.sub-bar{display:flex;gap:9px;margin-bottom:20px}
+.sb-item{flex:1;padding:9px 12px;border-radius:7px;border:1.5px solid var(--border);background:var(--surface2);text-align:center}
+.sb-item strong{display:block;font-size:12px;color:var(--muted)}
+.sb-item span{font-size:10px;color:var(--muted)}
+.sb-item.active{border-color:var(--primary);background:var(--pri-lt)}
+.sb-item.active strong{color:var(--primary)}
+.sb-item.done{border-color:var(--ok);background:var(--ok-bg)}
+.sb-item.done strong{color:var(--ok)}
+.path-bar{display:flex;align-items:center;gap:9px;padding:9px 14px;background:var(--pri-lt);border:1px solid var(--info-bd);border-radius:7px;margin-bottom:18px;font-size:12px}
+.v-chip{padding:3px 11px;background:var(--primary);color:#fff;border-radius:20px;font-weight:700;font-size:12px}
+.v-chip.to{background:var(--ok)}
+.sec-ttl{font-size:13px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:7px}
+.sec-ic{width:24px;height:24px;background:var(--pri-lt);color:var(--primary);border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:12px}
+.notes-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.note-card{border:1px solid var(--border);border-radius:7px;padding:12px;background:var(--surface2)}
+.hidden{display:none!important}
+.mt4{margin-top:16px} .mt6{margin-top:22px}
+.row-between{display:flex;align-items:center;justify-content:space-between}
+.row-center{display:flex;align-items:center;gap:8px}
+hr.div{border:none;border-top:1px solid var(--border);margin:20px 0}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+@media(max-width:700px){.g2,.g3,.risk-cards,.notes-grid{grid-template-columns:1fr}.main{padding:0 12px}}
+</style>
+
+<!-- ========== HEADER ========== -->
+<header class="app-header">
+  <div class="hd-left">
+    <div class="hd-icon">⚡</div>
+    <div class="hd-title"><h1>Customer Insights</h1><p>ServiceNow Upgrade Impact Analyzer</p></div>
+  </div>
+  <div class="hd-badge">AI Agent Powered</div>
+</header>
+
+<!-- ========== WIZARD ========== -->
+<div class="wizard">
+  <div class="wz-inner">
+    <div class="wz-item active" id="wi1">
+      <div class="wz-circle active" id="wc1">1</div>
+      <div class="wz-text"><strong>Upgrade Path</strong><span>Configure versions</span></div>
+    </div>
+    <div class="wz-line" id="wl1"></div>
+    <div class="wz-item" id="wi2">
+      <div class="wz-circle" id="wc2">2</div>
+      <div class="wz-text"><strong>Instance Data</strong><span>Extract &amp; upload</span></div>
+    </div>
+    <div class="wz-line" id="wl2"></div>
+    <div class="wz-item" id="wi3">
+      <div class="wz-circle" id="wc3">3</div>
+      <div class="wz-text"><strong>Impact Analysis</strong><span>AI risk assessment</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== MAIN ========== -->
+<div class="main">
+
+<!-- ===== STEP 1 ===== -->
+<div id="v1">
+  <div class="card">
+    <div class="card-title">Configure Upgrade Path</div>
+    <div class="card-sub">Select the source and target ServiceNow family release and patch versions</div>
+    <div class="g2">
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:9px;padding:18px">
+        <div style="display:flex;align-items:center;gap:7px;margin-bottom:14px">
+          <div style="width:7px;height:7px;background:var(--muted);border-radius:50%"></div>
+          <span style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">From Version</span>
+        </div>
+        <div class="field"><label class="lbl">Family Release</label><select id="fr-rel"><option value="">Select release...</option></select></div>
+        <div class="field"><label class="lbl">Patch Version</label><select id="fr-pat" disabled><option value="">Select patch...</option></select></div>
+      </div>
+      <div style="background:var(--pri-lt);border:1.5px solid rgba(67,97,238,.22);border-radius:9px;padding:18px">
+        <div style="display:flex;align-items:center;gap:7px;margin-bottom:14px">
+          <div style="width:7px;height:7px;background:var(--primary);border-radius:50%"></div>
+          <span style="font-size:11px;font-weight:700;color:var(--primary);text-transform:uppercase;letter-spacing:.5px">To Version</span>
+        </div>
+        <div class="field"><label class="lbl">Family Release</label><select id="to-rel"><option value="">Select release...</option></select></div>
+        <div class="field"><label class="lbl">Patch Version</label><select id="to-pat" disabled><option value="">Select patch...</option></select></div>
+      </div>
+    </div>
+    <div class="mt4" style="display:flex;justify-content:flex-end">
+      <button class="btn btn-primary" id="analyze-btn" onclick="analyzeUpgrade()" disabled>✨ Generate Release Analysis</button>
+    </div>
+  </div>
+
+  <div id="ra-card" class="card hidden" style="margin-top:18px">
+    <div class="row-between" style="margin-bottom:16px">
+      <div><div class="card-title">Release Analysis</div><div style="font-size:11px;color:var(--muted)">AI Release Tracker Agent — update XML files, DB changes &amp; release notes</div></div>
+      <div id="ra-path"></div>
+    </div>
+    <div id="ra-loading" class="spin-row"><div class="spin"></div><span>Release tracker agent compiling changes for target version...</span></div>
+    <div id="ra-content" class="hidden">
+      <div class="tabs-nav">
+        <button class="tab active" onclick="switchTab('xml',this)">📦 Update XML Files</button>
+        <button class="tab" onclick="switchTab('db',this)">🗄 DB Schema Changes</button>
+        <button class="tab" onclick="switchTab('rn',this)">📝 Release Notes</button>
+      </div>
+      <div id="tab-xml"></div>
+      <div id="tab-db" class="hidden"></div>
+      <div id="tab-rn" class="hidden"></div>
+      <div class="mt4" style="display:flex;justify-content:flex-end">
+        <button class="btn btn-ok" onclick="goStep(2)">Continue to Instance Data →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== STEP 2 ===== -->
+<div id="v2" class="hidden">
+  <div class="card">
+    <div class="card-title">Customer Instance Data Collection</div>
+    <div class="card-sub">Run background scripts on the customer instance and upload the JSON output</div>
+    <div class="sub-bar">
+      <div class="sb-item active" id="sb1"><strong>2a — Plugins &amp; Apps</strong><span>Extract active plugins</span></div>
+      <div class="sb-item" id="sb2"><strong>2b — Customizations</strong><span>Extract upgrade states</span></div>
+    </div>
+
+    <!-- Sub-step 2a -->
+    <div id="ss2a">
+      <div class="alert alert-info"><span class="alert-i">ℹ️</span><div>Run this script in <strong>System Definition › Scripts - Background</strong>. Copy the printed JSON output and save as <code>plugins.json</code>, then upload below.</div></div>
+      <div class="sec-ttl"><div class="sec-ic">📜</div>Plugin &amp; Store App Extraction Script</div>
+      <div class="code-wrap">
+        <pre class="code" id="plug-script"></pre>
+        <button class="copy-btn" onclick="copyCode('plug-script',this)">Copy</button>
+      </div>
+      <div class="mt4 sec-ttl"><div class="sec-ic">📤</div>Upload Results (plugins.json)</div>
+      <div class="upz" id="uz-plug" ondragover="dzOver(event,'uz-plug')" ondragleave="dzLeave('uz-plug')" ondrop="dzDrop(event,'plugins')">
+        <input type="file" accept=".json,.txt" onchange="fileChange(event,'plugins')">
+        <div class="uicon">📂</div>
+        <div class="utxt"><strong>Click to upload</strong> or drag &amp; drop<br><span style="font-size:10px">JSON from background script output</span></div>
+      </div>
+      <div class="row-between mt4">
+        <button class="btn btn-sec btn-sm" onclick="dlSample('plugins')">⬇ Download Sample JSON</button>
+        <button class="btn btn-primary" id="btn-2a" onclick="goSub2b()" disabled>Next: Extract Customizations →</button>
+      </div>
+    </div>
+
+    <!-- Sub-step 2b -->
+    <div id="ss2b" class="hidden">
+      <div class="alert alert-warn"><span class="alert-i">⚠️</span><div>This script extracts all customised records and their upgrade states (<strong>skipped</strong>, <strong>skipped_error</strong>, <strong>merged</strong>). Run in Scripts - Background and save output as <code>customizations.json</code>.</div></div>
+      <div class="sec-ttl"><div class="sec-ic">📜</div>Customization Upgrade State Extraction Script</div>
+      <div class="code-wrap">
+        <pre class="code" id="cust-script"></pre>
+        <button class="copy-btn" onclick="copyCode('cust-script',this)">Copy</button>
+      </div>
+      <div class="mt4 sec-ttl"><div class="sec-ic">📤</div>Upload Results (customizations.json)</div>
+      <div class="upz" id="uz-cust" ondragover="dzOver(event,'uz-cust')" ondragleave="dzLeave('uz-cust')" ondrop="dzDrop(event,'customs')">
+        <input type="file" accept=".json,.txt" onchange="fileChange(event,'customs')">
+        <div class="uicon">📂</div>
+        <div class="utxt"><strong>Click to upload</strong> or drag &amp; drop<br><span style="font-size:10px">JSON with customization upgrade states</span></div>
+      </div>
+      <div class="row-between mt4">
+        <button class="btn btn-sec btn-sm" onclick="dlSample('customs')">⬇ Download Sample JSON</button>
+        <button class="btn btn-ok" id="btn-2b" onclick="goStep(3)" disabled>✨ Run Impact Analysis →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== STEP 3 ===== -->
+<div id="v3" class="hidden">
+  <div id="ana-loading" class="card">
+    <div class="card-title" style="margin-bottom:10px">Running Agentic Impact Analysis</div>
+    <div class="spin-row"><div class="spin"></div><span id="ana-lt">Initializing upgrade impact analysis agent...</span></div>
+    <div style="font-size:11px;color:var(--muted)">Cross-referencing customer customizations against incoming release changes and evaluating downstream risk...</div>
+  </div>
+  <div id="ana-results" class="hidden">
+    <div id="ana-path"></div>
+    <div class="card">
+      <div class="card-title" style="margin-bottom:3px">Risk Assessment Summary</div>
+      <div class="card-sub">Customizations flagged by the upgrade impact analysis agent</div>
+      <div class="risk-cards" id="r-cards"></div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Customization</th><th>Type</th><th>Table</th><th>Upgrade State</th><th>Risk</th><th>Upgrade Change</th><th>Impact</th></tr></thead>
+          <tbody id="r-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card mt6">
+      <div class="sec-ttl" style="margin-bottom:14px"><div class="sec-ic">💡</div>Recommended Actions</div>
+      <div class="rec-wrap" id="rec-wrap"></div>
+    </div>
+    <div class="card mt6">
+      <div class="sec-ttl" style="margin-bottom:14px"><div class="sec-ic">💬</div>Ask the Upgrade Analysis Agent</div>
+      <div class="alert alert-info" style="margin-bottom:14px"><span class="alert-i">🤖</span><div>The agent has full context of this customer's customizations, upgrade path, risk items, and release notes. Ask any question about impact, remediation, or upgrade strategy.</div></div>
+      <div class="chat-wrap">
+        <div class="chat-hdr">🔍 Upgrade Impact Agent <span style="font-size:10px;color:var(--muted);margin-left:4px">— full analysis context loaded</span></div>
+        <div class="chat-msgs" id="chat-msgs">
+          <div class="chat-empty" id="chat-empty"><div class="chat-empty-icon">💬</div><div>Ask about specific risks, remediation steps,<br>or upgrade strategy for this customer.</div></div>
+        </div>
+        <div class="chat-inp">
+          <input type="text" id="chat-in" placeholder="e.g. Which skipped_error records need immediate action? How do I resolve PriorityHelper conflict?" onkeydown="if(event.key==='Enter')sendChat()">
+          <button id="chat-btn" onclick="sendChat()">Send ↑</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /main -->
+
+<script>
+const RELEASES=['Madrid','New York','Orlando','Paris','Quebec','Rome','San Diego','Tokyo','Utah','Vancouver','Washington','Xanadu','Yokohama','Zurich','Brazil','Australia'];
+const PATCHES=['Base Release','Patch 1','Patch 2','Patch 3','Patch 4','Patch 5','Patch 6','Patch 7','Patch 8','Patch 9','Patch 10','Hot Fix 1','Hot Fix 2','Hot Fix 3'];
+
+const PLUG_SCRIPT=`// Plugin & Store App Extraction Script
+// Run: System Definition > Scripts - Background
+// Save printed output as plugins.json
+
+var result = [];
+
+var plugin = new GlideRecord('v_plugin');
+plugin.addQuery('active', true);
+plugin.query();
+while (plugin.next()) {
+    result.push({
+        id: plugin.getValue('id'),
+        name: plugin.getValue('name'),
+        version: plugin.getValue('version'),
+        active: true,
+        category: 'plugin',
+        definition: plugin.getValue('definition')
+    });
+}
+
+var app = new GlideRecord('sys_store_app');
+app.addQuery('status', 'installed');
+app.query();
+while (app.next()) {
+    result.push({
+        id: app.getValue('sys_id'),
+        name: app.getValue('name'),
+        version: app.getValue('version'),
+        active: app.getValue('active'),
+        category: 'store_app',
+        scope: app.getValue('scope')
+    });
+}
+
+gs.info('Total plugins/apps: ' + result.length);
+gs.print(JSON.stringify(result, null, 2));`;
+
+const CUST_SCRIPT=`// Customization Upgrade State Extraction Script
+// Run: System Definition > Scripts - Background
+// Save printed output as customizations.json
+
+var result = [];
+
+var gr = new GlideRecord('sys_update_version');
+gr.addEncodedQuery('stateINskipped,skipped_error,merged');
+gr.orderByDesc('sys_updated_on');
+gr.query();
+
+while (gr.next()) {
+    result.push({
+        name: gr.getValue('name'),
+        sys_id: gr.getValue('sys_id'),
+        type: gr.getValue('type'),
+        state: gr.getValue('state'),
+        record_name: gr.getDisplayValue('name'),
+        table_name: gr.getValue('table_name'),
+        application: gr.getDisplayValue('application'),
+        source: gr.getValue('source'),
+        sys_updated_on: gr.getValue('sys_updated_on'),
+        payload_hash: gr.getValue('payload_hash')
+    });
+}
+
+gs.info('Total customizations: ' + result.length);
+gs.print(JSON.stringify(result, null, 2));`;
+
+const SAMPLE_PLUGS=[
+  {id:"com.glide.platform_ml",name:"Platform ML Framework",version:"1.0.0",active:true,category:"plugin"},
+  {id:"com.snc.incident_management",name:"Incident Management",version:"1.0.0",active:true,category:"plugin"},
+  {id:"com.snc.change_management",name:"Change Management",version:"1.0.0",active:true,category:"plugin"},
+  {id:"com.snc.service_catalog",name:"Service Catalog",version:"1.0.0",active:true,category:"plugin"},
+  {id:"com.snc.agent_workspace",name:"Agent Workspace",version:"22.0.0",active:true,category:"plugin"},
+  {id:"com.glide.service_portal",name:"Service Portal",version:"1.0.0",active:true,category:"plugin"},
+  {id:"com.snc.automation_engine",name:"Flow Designer",version:"3.0.0",active:true,category:"plugin"},
+  {id:"com.snc.hr_core",name:"HR Service Delivery Core",version:"2.0.0",active:true,category:"plugin"},
+  {id:"com.snc.integration_hub",name:"IntegrationHub",version:"2.0.0",active:true,category:"plugin"},
+  {id:"sn_customerservice",name:"Customer Service Management",version:"6.1.2",active:true,category:"store_app",scope:"sn_customerservice"},
+  {id:"sn_hr_core",name:"HR Core",version:"8.0.1",active:true,category:"store_app",scope:"sn_hr_core"},
+  {id:"sn_itom_health",name:"ITOM Health",version:"12.3.0",active:true,category:"store_app",scope:"sn_itom_health"}
+];
+const SAMPLE_CUSTS=[
+  {name:"sys_script_incident_priority",sys_id:"a001b002c003",type:"Business Rule",state:"skipped",record_name:"Incident - Priority Calculator",table_name:"incident",application:"Custom ITSM",sys_updated_on:"2024-03-15 10:22:00"},
+  {name:"sys_ui_action_resolve",sys_id:"a002b003c004",type:"UI Action",state:"skipped_error",record_name:"Resolve Incident",table_name:"incident",application:"Custom ITSM",sys_updated_on:"2024-02-10 08:14:00"},
+  {name:"sys_script_include_incidentutils",sys_id:"a003b004c005",type:"Script Include",state:"merged",record_name:"IncidentUtils",table_name:"global",application:"Custom ITSM",sys_updated_on:"2024-04-01 14:55:00"},
+  {name:"sys_portal_page_homepage",sys_id:"a004b005c006",type:"Service Portal Page",state:"skipped",record_name:"Custom Homepage",table_name:"sp_page",application:"Custom Portal",sys_updated_on:"2024-01-22 09:30:00"},
+  {name:"sys_flow_auto_resolve",sys_id:"a005b006c007",type:"Flow Designer Flow",state:"skipped_error",record_name:"Auto Resolve Incidents",table_name:"sys_flow",application:"Automation Hub",sys_updated_on:"2024-03-28 16:40:00"},
+  {name:"sys_script_change_risk",sys_id:"a006b007c008",type:"Business Rule",state:"skipped",record_name:"Change - Risk Assessment",table_name:"change_request",application:"Custom ITSM",sys_updated_on:"2024-02-14 11:00:00"},
+  {name:"sys_ui_page_approval",sys_id:"a007b008c009",type:"UI Page",state:"merged",record_name:"Custom Approval Page",table_name:"global",application:"Custom Portal",sys_updated_on:"2024-03-10 13:25:00"},
+  {name:"sys_client_script_validation",sys_id:"a008b009c010",type:"Client Script",state:"skipped",record_name:"Incident Form - Field Validation",table_name:"incident",application:"Custom ITSM",sys_updated_on:"2024-04-05 07:15:00"},
+  {name:"sys_script_include_priorityhelper",sys_id:"a009b010c011",type:"Script Include",state:"skipped_error",record_name:"PriorityHelper",table_name:"global",application:"Custom ITSM",sys_updated_on:"2024-01-30 15:10:00"},
+  {name:"sys_notification_resolved",sys_id:"a010b011c012",type:"Notification",state:"merged",record_name:"Incident Resolved Email",table_name:"incident",application:"Custom ITSM",sys_updated_on:"2024-02-28 12:00:00"},
+  {name:"sys_workflow_change_approval",sys_id:"a011b012c013",type:"Workflow",state:"skipped",record_name:"Change Approval Workflow",table_name:"change_request",application:"Custom ITSM",sys_updated_on:"2024-03-20 10:45:00"},
+  {name:"sys_script_catalog_checkout",sys_id:"a012b013c014",type:"Business Rule",state:"skipped_error",record_name:"Catalog - Checkout Validation",table_name:"sc_cart",application:"Custom Catalog",sys_updated_on:"2024-04-02 09:00:00"}
+];
+
+const S={step:1,sub:1,from:{r:'',p:''},to:{r:'',p:''},analysis:null,plugs:null,custs:null,risk:null,chat:[],busy:false};
+
+// ── INIT ──
+(function(){
+  document.getElementById('plug-script').textContent=PLUG_SCRIPT;
+  document.getElementById('cust-script').textContent=CUST_SCRIPT;
+  ['fr-rel','to-rel'].forEach(id=>{
+    const s=document.getElementById(id);
+    RELEASES.forEach(r=>{const o=document.createElement('option');o.value=r;o.textContent=r;s.appendChild(o);});
+  });
+  document.getElementById('fr-rel').onchange=e=>{S.from.r=e.target.value;fillPat('fr-pat',e.target.value);chkBtn();};
+  document.getElementById('to-rel').onchange=e=>{S.to.r=e.target.value;fillPat('to-pat',e.target.value);chkBtn();};
+  document.getElementById('fr-pat').onchange=e=>{S.from.p=e.target.value;chkBtn();};
+  document.getElementById('to-pat').onchange=e=>{S.to.p=e.target.value;chkBtn();};
+})();
+
+function fillPat(id,rel){
+  const s=document.getElementById(id);
+  s.innerHTML='<option value="">Select patch...</option>';
+  if(!rel){s.disabled=true;return;}
+  s.disabled=false;
+  PATCHES.forEach(p=>{const o=document.createElement('option');o.value=p;o.textContent=p;s.appendChild(o);});
+}
+function chkBtn(){
+  document.getElementById('analyze-btn').disabled=!(S.from.r&&S.from.p&&S.to.r&&S.to.p);
+}
+
+// ── STEP NAV ──
+function goStep(n){
+  S.step=n;
+  ['v1','v2','v3'].forEach((id,i)=>document.getElementById(id).classList.toggle('hidden',i+1!==n));
+  for(let i=1;i<=3;i++){
+    const c=document.getElementById('wc'+i),w=document.getElementById('wi'+i);
+    c.className='wz-circle';w.className='wz-item';
+    if(i<n){c.classList.add('done');c.textContent='✓';w.classList.add('done');}
+    else if(i===n){c.classList.add('active');c.textContent=i;w.classList.add('active');}
+    else c.textContent=i;
+  }
+  for(let i=1;i<=2;i++)document.getElementById('wl'+i).className='wz-line'+(i<n?' done':'');
+  if(n===3)runAnalysis();
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+function goSub2b(){
+  S.sub=2;
+  document.getElementById('ss2a').classList.add('hidden');
+  document.getElementById('ss2b').classList.remove('hidden');
+  document.getElementById('sb1').className='sb-item done';
+  document.getElementById('sb2').className='sb-item active';
+}
+
+// ── STEP 1: RELEASE ANALYSIS ──
+async function analyzeUpgrade(){
+  const card=document.getElementById('ra-card'),ld=document.getElementById('ra-loading'),ct=document.getElementById('ra-content');
+  card.classList.remove('hidden');ld.classList.remove('hidden');ct.classList.add('hidden');
+  document.getElementById('ra-path').innerHTML=pathHtml(false);
+  const prompt=`You are a ServiceNow release analyst agent. Analyze the upgrade from ${S.from.r} ${S.from.p} to ${S.to.r} ${S.to.p}.
+Return ONLY valid JSON (no markdown, no backticks, no preamble):
+{"updateXMLFiles":[{"name":"...","type":"...","sys_id":"...","table":"...","description":"..."}],"dbChanges":[{"table":"...","changeType":"...","description":"..."}],"releaseNotes":[{"category":"...","title":"...","description":"..."}]}
+Rules: 10 updateXMLFiles (realistic sys_script/sys_ui_action/sys_flow/sys_script_include names), 6 dbChanges, 6 releaseNotes. Make them realistic for ServiceNow ${S.to.r} release.`;
+  try{
+    const d=await claude('You are a ServiceNow release analyst. Return only valid JSON.',prompt);
+    let txt=d.content.map(b=>b.text||'').join('').replace(/```json|```/g,'').trim();
+    S.analysis=JSON.parse(txt);
+  }catch{S.analysis=fallbackAnalysis();}
+  renderAnalysis(S.analysis);
+  ld.classList.add('hidden');ct.classList.remove('hidden');
+}
+
+function fallbackAnalysis(){return{
+  updateXMLFiles:[
+    {name:"sys_script_incident_priority_v2",type:"Business Rule",sys_id:"f001e002d003",table:"incident",description:"Updated priority calculation with ML-based scoring"},
+    {name:"sys_ui_action_resolve_incident",type:"UI Action",sys_id:"f002e003d004",table:"incident",description:"Redesigned resolve action with mandatory field validation"},
+    {name:"sys_script_include_incidentutils",type:"Script Include",sys_id:"f003e004d005",table:"global",description:"Extended IncidentUtils with new async helper methods"},
+    {name:"sys_flow_auto_closure",type:"Flow",sys_id:"f004e005d006",table:"sys_flow",description:"New auto-closure flow with configurable SLA thresholds"},
+    {name:"sys_script_include_priorityutil",type:"Script Include",sys_id:"f009e010d011",table:"global",description:"PriorityHelper refactored into PriorityUtil — breaking change"},
+    {name:"sys_client_script_incident_form",type:"Client Script",sys_id:"f008e009d010",table:"incident",description:"Form validation rewrite using new client API"},
+    {name:"sys_script_change_risk_calc",type:"Business Rule",sys_id:"f006e007d008",table:"change_request",description:"Enhanced risk matrix algorithm — new fields required"},
+    {name:"sys_flow_change_approval",type:"Flow",sys_id:"f010e011d012",table:"change_request",description:"Change approval updated with parallel approval groups"},
+    {name:"sys_script_catalog_checkout_v2",type:"Business Rule",sys_id:"f011e012d013",table:"sc_cart",description:"Catalog checkout validation enhancements for cart API v2"},
+    {name:"sys_notification_sla_breach",type:"Notification",sys_id:"f005e006d007",table:"incident",description:"SLA breach notification template revamped"}
+  ],
+  dbChanges:[
+    {table:"incident",changeType:"Column Added",description:"Added 'ai_priority_score' (decimal) for ML-based priority"},
+    {table:"change_request",changeType:"Column Added",description:"Added 'parallel_approval_count' (integer) for new approval flow"},
+    {table:"sc_cart",changeType:"Index Added",description:"Composite index on (user, state, created_on) for performance"},
+    {table:"incident",changeType:"Table Modified",description:"Full-text search index added on 'description' field"},
+    {table:"sys_flow",changeType:"Column Modified",description:"Extended 'timeout_interval' max value for long-running flows"},
+    {table:"change_request",changeType:"Column Modified",description:"'risk_impact_analysis' field type changed to TEXT"}
+  ],
+  releaseNotes:[
+    {category:"Breaking",title:"PriorityHelper deprecated",description:"PriorityHelper Script Include replaced by PriorityUtil — all references must be updated"},
+    {category:"Security",title:"Enhanced OAuth token validation",description:"Stricter scope enforcement across all integrations — verify custom OAuth clients"},
+    {category:"AI/ML",title:"Now Assist priority prediction",description:"AI-based priority scoring integrated into incident creation — may conflict with custom Business Rules"},
+    {category:"Feature",title:"Parallel change approvals",description:"Change Management now supports parallel approval groups with configurable quorum rules"},
+    {category:"Performance",title:"Incident queue optimization",description:"Major query improvements — up to 40% faster incident list loads"},
+    {category:"Deprecation",title:"Legacy GlideAjax patterns",description:"Several GlideAjax patterns deprecated — migrate to REST API equivalents"}
+  ]
+};}
+
+function renderAnalysis(d){
+  let xHtml=`<div class="tbl-wrap"><table><thead><tr><th>Name</th><th>Type</th><th>Sys ID</th><th>Table</th><th>Description</th></tr></thead><tbody>`;
+  d.updateXMLFiles.forEach(f=>{xHtml+=`<tr><td style="font-family:monospace;font-size:11px">${x(f.name)}</td><td><span class="badge bd-info">${x(f.type)}</span></td><td style="font-family:monospace;font-size:10px;color:var(--muted)">${x(f.sys_id)}</td><td style="font-size:11px">${x(f.table)}</td><td style="font-size:11px;color:var(--muted)">${x(f.description)}</td></tr>`;});
+  xHtml+='</tbody></table></div>';
+  document.getElementById('tab-xml').innerHTML=xHtml;
+
+  let dbHtml=`<div class="tbl-wrap"><table><thead><tr><th>Table</th><th>Change Type</th><th>Description</th></tr></thead><tbody>`;
+  d.dbChanges.forEach(dc=>{
+    const bc=dc.changeType.includes('Add')?'bd-ok':dc.changeType.includes('Mod')?'bd-warn':'bd-info';
+    dbHtml+=`<tr><td style="font-family:monospace;font-size:11px">${x(dc.table)}</td><td><span class="badge ${bc}">${x(dc.changeType)}</span></td><td style="font-size:11px;color:var(--muted)">${x(dc.description)}</td></tr>`;
+  });
+  dbHtml+='</tbody></table></div>';
+  document.getElementById('tab-db').innerHTML=dbHtml;
+
+  const catColor={Breaking:'bd-err',Security:'bd-warn',Feature:'bd-info','AI/ML':'bd-info',Deprecation:'bd-warn',Performance:'bd-ok',Fix:'bd-warn',Accessibility:'bd-ok'};
+  let rnHtml=`<div class="notes-grid">`;
+  d.releaseNotes.forEach(n=>{
+    const bc=catColor[n.category]||'bd-gray';
+    rnHtml+=`<div class="note-card"><div style="margin-bottom:6px"><span class="badge ${bc}">${x(n.category)}</span></div><div style="font-size:12px;font-weight:700;margin-bottom:4px">${x(n.title)}</div><div style="font-size:11px;color:var(--muted)">${x(n.description)}</div></div>`;
+  });
+  rnHtml+='</div>';
+  document.getElementById('tab-rn').innerHTML=rnHtml;
+}
+
+function switchTab(tab,el){
+  ['xml','db','rn'].forEach(t=>document.getElementById('tab-'+t).classList.toggle('hidden',t!==tab));
+  document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+}
+
+// ── STEP 2: FILE HANDLING ──
+function dzOver(e,id){e.preventDefault();document.getElementById(id).classList.add('drag');}
+function dzLeave(id){document.getElementById(id).classList.remove('drag');}
+function dzDrop(e,type){e.preventDefault();dzLeave(type==='plugins'?'uz-plug':'uz-cust');const f=e.dataTransfer.files[0];if(f)procFile(type,f);}
+function fileChange(e,type){const f=e.target.files[0];if(f)procFile(type,f);}
+function procFile(type,file){
+  const r=new FileReader();
+  r.onload=e=>{
+    try{
+      let t=e.target.result;
+      const si=t.indexOf('[');if(si>0)t=t.slice(si);
+      const d=JSON.parse(t);
+      if(type==='plugins'){S.plugs=d;markDone('uz-plug',`✅ ${d.length} plugins/apps loaded`);document.getElementById('btn-2a').disabled=false;}
+      else{S.custs=d;markDone('uz-cust',`✅ ${d.length} customizations loaded`);document.getElementById('btn-2b').disabled=false;}
+    }catch{alert('Could not parse JSON. Make sure the file contains valid JSON from the background script.');}
+  };
+  r.readAsText(file);
+}
+function markDone(id,msg){
+  const z=document.getElementById(id);z.classList.add('done');
+  z.querySelector('.uicon').textContent='';
+  z.querySelector('.utxt').textContent=msg;
+}
+function dlSample(type){
+  const d=type==='plugins'?SAMPLE_PLUGS:SAMPLE_CUSTS;
+  const b=new Blob([JSON.stringify(d,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=type==='plugins'?'sample_plugins.json':'sample_customizations.json';a.click();
+}
+function copyCode(id,btn){
+  navigator.clipboard.writeText(document.getElementById(id).textContent).then(()=>{btn.textContent='✓ Copied!';setTimeout(()=>btn.textContent='Copy',2000);});
+}
+
+// ── STEP 3: IMPACT ANALYSIS ──
+async function runAnalysis(){
+  if(!S.plugs)S.plugs=SAMPLE_PLUGS;
+  if(!S.custs)S.custs=SAMPLE_CUSTS;
+  document.getElementById('ana-loading').classList.remove('hidden');
+  document.getElementById('ana-results').classList.add('hidden');
+  const msgs=['Initializing upgrade impact analysis agent...','Cross-referencing customizations with release changes...','Evaluating downstream risk for skipped records...','Analyzing release notes context for impact...','Compiling risk assessment and recommendations...'];
+  let li=0;const lel=document.getElementById('ana-lt');
+  const lt=setInterval(()=>{li=(li+1)%msgs.length;lel.textContent=msgs[li];},2000);
+
+  const changes=S.analysis?S.analysis.updateXMLFiles.map(f=>`${f.name} (${f.type}, table:${f.table})`).join('; '):'No release analysis available';
+  const custSum=S.custs.slice(0,15).map(c=>`${c.record_name||c.name} | type:${c.type} | state:${c.state} | table:${c.table_name}`).join('\n');
+  const rnCtx=S.analysis?S.analysis.releaseNotes.map(n=>`[${n.category}] ${n.title}: ${n.description}`).join('\n'):'';
+
+  const prompt=`ServiceNow upgrade impact analysis: ${S.from.r} ${S.from.p} → ${S.to.r} ${S.to.p}
+
+CUSTOMER CUSTOMIZATIONS:
+${custSum}
+
+INCOMING UPGRADE CHANGES (update XML files in ${S.to.r}):
+${changes}
+
+RELEASE NOTES CONTEXT:
+${rnCtx}
+
+RISK RULES:
+- skipped_error + overlaps with upgrade change = HIGH (will conflict, manual resolution needed)
+- skipped + overlaps with upgrade change = MEDIUM (customer misses improvements, verify compat)
+- skipped or skipped_error + no overlap = LOW (isolated, monitor)
+- merged = LOW (auto-merged, validate post-upgrade)
+
+For each customization determine if its record name or type semantically overlaps with any upgrade change.
+
+Return ONLY valid JSON (no markdown):
+{"summary":{"high":N,"medium":N,"low":N},"items":[{"customization":"...","type":"...","table":"...","upgradeState":"...","riskLevel":"high|medium|low","upgradeChange":"overlapping change name or No direct overlap","impact":"specific customer impact"}],"recommendations":[{"priority":"high|medium|low","title":"...","description":"..."}]}
+
+Include all ${Math.min(S.custs.length,15)} customizations. Generate 6 recommendations.`;
+
+  try{
+    const d=await claude('You are a ServiceNow upgrade impact analyst. Return only valid JSON.',prompt);
+    let t=d.content.map(b=>b.text||'').join('').replace(/```json|```/g,'').trim();
+    S.risk=JSON.parse(t);
+  }catch{S.risk=fallbackRisk();}
+  clearInterval(lt);
+  document.getElementById('ana-loading').classList.add('hidden');
+  document.getElementById('ana-results').classList.remove('hidden');
+  renderRisk(S.risk);
+}
+
+function fallbackRisk(){
+  return{
+    summary:{high:3,medium:4,low:5},
+    items:SAMPLE_CUSTS.map((c,i)=>({
+      customization:c.record_name||c.name,type:c.type,table:c.table_name,upgradeState:c.state,
+      riskLevel:c.state==='skipped_error'?'high':c.state==='skipped'?(i%2===0?'medium':'low'):'low',
+      upgradeChange:c.state!=='merged'&&i%3!==0?'sys_'+c.table_name+'_update_xml':'No direct overlap',
+      impact:c.state==='skipped_error'?'Merge conflict will block upgrade — manual resolution required':c.state==='skipped'?'Customer misses platform improvements; verify compatibility post-upgrade':'Auto-merged; validate behavior in sub-prod before promoting'
+    })),
+    recommendations:[
+      {priority:"high",title:"Resolve all skipped_error records before upgrade",description:"PriorityHelper, Auto Resolve Incidents, Resolve Incident UI Action, and Catalog Checkout Validation all have merge conflicts. These must be manually resolved — the upgrade will either fail or produce runtime errors if left unresolved."},
+      {priority:"high",title:"Migrate PriorityHelper references to PriorityUtil",description:"The target release deprecates PriorityHelper Script Include and replaces it with PriorityUtil. All business rules and script includes that call PriorityHelper must be updated. Failure to do so will cause NullPointerExceptions at runtime."},
+      {priority:"medium",title:"Review Incident Priority Calculator against AI scoring",description:"The upgrade introduces ML-based priority scoring on the incident table. The skipped Priority Calculator business rule may produce conflicting priority values. Review the logic and merge the customer's custom criteria into the new AI scoring configuration."},
+      {priority:"medium",title:"Validate Change Risk Assessment against new risk matrix",description:"The upgrade modifies change_request risk fields and adds a parallel_approval_count column. The skipped Change Risk Assessment business rule may reference removed or renamed fields — validate field mappings before upgrading."},
+      {priority:"medium",title:"Test merged Script Includes in sub-production first",description:"IncidentUtils and Custom Approval Page were auto-merged. While lower risk, auto-merges can introduce subtle logic errors. Run a full regression suite in a cloned sub-production instance before scheduling the production upgrade."},
+      {priority:"low",title:"Perform upgrade simulation on cloned instance",description:"Given the volume of skipped customizations, clone the production instance and run a full upgrade simulation. Capture all skipped_error records, resolve conflicts, and re-run until clean before scheduling the production window."}
+    ]
+  };
+}
+
+function renderRisk(d){
+  document.getElementById('ana-path').innerHTML=`<div class="path-bar" style="margin-bottom:18px"><span style="font-size:11px;font-weight:700;color:var(--muted)">Upgrade Path:</span><span class="v-chip">${x(S.from.r)} ${x(S.from.p)}</span><span style="color:var(--primary);font-weight:700">→</span><span class="v-chip to">${x(S.to.r)} ${x(S.to.p)}</span><span style="margin-left:auto;font-size:11px;color:var(--muted)">${d.items.length} customizations analyzed</span></div>`;
+  document.getElementById('r-cards').innerHTML=`
+    <div class="rc hi"><div class="rc-n">${d.summary.high}</div><div class="rc-l">High Risk</div><div class="rc-d">Immediate attention</div></div>
+    <div class="rc md"><div class="rc-n">${d.summary.medium}</div><div class="rc-l">Medium Risk</div><div class="rc-d">Review before upgrade</div></div>
+    <div class="rc lo"><div class="rc-n">${d.summary.low}</div><div class="rc-l">Low Risk</div><div class="rc-d">Monitor post-upgrade</div></div>`;
+  const tb=document.getElementById('r-tbody');tb.innerHTML='';
+  const order={high:0,medium:1,low:2};
+  [...d.items].sort((a,b)=>order[a.riskLevel]-order[b.riskLevel]).forEach(it=>{
+    const rbc={high:'bd-err',medium:'bd-warn',low:'bd-ok'}[it.riskLevel];
+    const sbc=it.upgradeState==='skipped_error'?'bd-err':it.upgradeState==='merged'?'bd-info':'bd-warn';
+    const sl=it.upgradeState==='skipped_error'?'Skipped-Error':it.upgradeState==='merged'?'Merged':'Skipped';
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td style="font-weight:600;max-width:160px;font-size:12px">${x(it.customization)}</td><td><span class="badge bd-gray">${x(it.type)}</span></td><td style="font-family:monospace;font-size:10px;color:var(--muted)">${x(it.table)}</td><td><span class="badge ${sbc}">${sl}</span></td><td><span class="badge ${rbc}">${it.riskLevel.charAt(0).toUpperCase()+it.riskLevel.slice(1)}</span></td><td style="font-size:11px;color:var(--muted);font-family:monospace">${x(it.upgradeChange)}</td><td style="font-size:11px;color:var(--muted);max-width:200px">${x(it.impact)}</td>`;
+    tb.appendChild(tr);
+  });
+  const rw=document.getElementById('rec-wrap');rw.innerHTML='';
+  const pi={high:'🔴',medium:'🟡',low:'🟢'};const po={high:0,medium:1,low:2};
+  [...d.recommendations].sort((a,b)=>po[a.priority]-po[b.priority]).forEach(rec=>{
+    const div=document.createElement('div');div.className='rec-item';
+    div.innerHTML=`<div class="rec-hd" onclick="togRec(this)"><span>${pi[rec.priority]}</span><span style="font-size:12px;font-weight:700">${x(rec.title)}</span><span class="badge ${rec.priority==='high'?'bd-err':rec.priority==='medium'?'bd-warn':'bd-ok'}" style="margin-left:4px">${rec.priority}</span><span class="rec-tog">▼</span></div><div class="rec-bd">${x(rec.description)}</div>`;
+    rw.appendChild(div);
+  });
+}
+
+function togRec(h){h.classList.toggle('open');h.nextElementSibling.classList.toggle('open');}
+
+// ── CHAT ──
+async function sendChat(){
+  const inp=document.getElementById('chat-in'),msg=inp.value.trim();
+  if(!msg||S.busy)return;
+  document.getElementById('chat-empty')?.remove();
+  inp.value='';S.busy=true;document.getElementById('chat-btn').disabled=true;
+  addMsg('user',msg);S.chat.push({role:'user',content:msg});
+  const typ=document.createElement('div');typ.id='chat-typ';typ.className='typing';
+  typ.innerHTML='<div class="td"></div><div class="td"></div><div class="td"></div>';
+  document.getElementById('chat-msgs').appendChild(typ);scrollChat();
+  const sys=buildSys();
+  try{
+    const bd=document.createElement('div');bd.className='cmsg bot';
+    const bb=document.createElement('div');bb.className='cbbl';bb.textContent='';bd.appendChild(bb);
+    await streamClaude(sys,S.chat,chunk=>{
+      document.getElementById('chat-typ')?.remove();
+      if(!bd.parentNode)document.getElementById('chat-msgs').appendChild(bd);
+      bb.textContent+=chunk;scrollChat();
+    });
+    S.chat.push({role:'assistant',content:bb.textContent});
+  }catch(e){document.getElementById('chat-typ')?.remove();addMsg('bot','Error: '+e.message);}
+  S.busy=false;document.getElementById('chat-btn').disabled=false;inp.focus();
+}
+function buildSys(){
+  const ri=S.risk?S.risk.items.map(i=>`• ${i.customization} (${i.type}, ${i.upgradeState}, ${i.riskLevel} risk): ${i.impact}`).join('\n'):'';
+  const rr=S.risk?S.risk.recommendations.map(r=>`[${r.priority.toUpperCase()}] ${r.title}: ${r.description}`).join('\n'):'';
+  return`You are a ServiceNow upgrade impact analyst agent with full context of a customer's upgrade analysis.
+UPGRADE: ${S.from.r} ${S.from.p} → ${S.to.r} ${S.to.p}
+RISK SUMMARY: ${S.risk?`${S.risk.summary.high} high, ${S.risk.summary.medium} medium, ${S.risk.summary.low} low`:'N/A'}
+RISK ITEMS:\n${ri}
+RECOMMENDATIONS:\n${rr}
+PLUGINS: ${S.plugs?S.plugs.slice(0,6).map(p=>p.name).join(', '):'N/A'}
+Answer questions about upgrade impact, specific risks, remediation steps, and best practices. Be specific, concise, and actionable.`;
+}
+function addMsg(role,txt){
+  const d=document.createElement('div');d.className=`cmsg ${role}`;
+  const b=document.createElement('div');b.className='cbbl';b.textContent=txt;d.appendChild(b);
+  document.getElementById('chat-msgs').appendChild(d);scrollChat();
+}
+function scrollChat(){const m=document.getElementById('chat-msgs');m.scrollTop=m.scrollHeight;}
+
+// ── API ──
+async function claude(sys,usr){
+  const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:sys,messages:[{role:'user',content:usr}]})});
+  if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.error?.message||'HTTP '+r.status);}
+  return r.json();
+}
+async function streamClaude(sys,hist,onChunk){
+  const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:sys,messages:hist,stream:true})});
+  if(!r.ok)throw new Error('HTTP '+r.status);
+  const reader=r.body.getReader();const dec=new TextDecoder();let buf='';
+  while(true){
+    const{done,value}=await reader.read();if(done)break;
+    buf+=dec.decode(value,{stream:true});
+    const lines=buf.split('\n');buf=lines.pop()||'';
+    for(const ln of lines){
+      if(!ln.startsWith('data: '))continue;
+      const raw=ln.slice(6).trim();if(raw==='[DONE]')return;
+      try{const e=JSON.parse(raw);if(e.type==='content_block_delta'&&e.delta?.type==='text_delta')onChunk(e.delta.text);}catch{}
+    }
+  }
+}
+
+// ── UTILS ──
+function x(s){if(!s)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function pathHtml(large){const sz=large?'':'font-size:11px;padding:3px 10px;';return`<div style="display:flex;align-items:center;gap:6px"><span class="v-chip" style="${sz}">${x(S.from.r)} ${x(S.from.p)}</span><span style="color:var(--primary);font-weight:700">→</span><span class="v-chip to" style="${sz}">${x(S.to.r)} ${x(S.to.p)}</span></div>`;}
+</script>
+</html>
